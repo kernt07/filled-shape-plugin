@@ -42,6 +42,16 @@ Custom Sigma plugin that renders a percentage-filled shape chart from workbook d
 
 - Uploaded base64 shape has precedence over URL shape.
 - If no uploaded shape exists, `shape URL` is used as fallback.
+
+## Deploy on Netlify (no localhost)
+
+1. Sign in at [Netlify](https://app.netlify.com) (free tier is fine).
+2. **Add new site** → **Import an existing project** → **GitHub**.
+3. Authorize Netlify for your GitHub account and pick repo `kernt07/filled-shape-plugin`.
+4. Netlify reads [`netlify.toml`](netlify.toml): build command `npm run build`, publish folder `dist`.
+5. Deploy. Copy the site URL (e.g. `https://filled-shape-plugin.netlify.app`).
+6. In Sigma, set your custom plugin **Production URL** to that HTTPS URL (or point a plugin element to it).
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
