@@ -554,7 +554,7 @@ function App() {
       )}
       <section className="chart-shell">
         <div className="chart-area">
-          {selectedIdx === null && (
+          {showUploadControls && selectedIdx === null && (
             <p className="intro-text">
               Upload or set a PNG shape, map `label column` and `value column`, then click a shape to
               select it and trigger configured actions.
