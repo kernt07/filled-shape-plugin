@@ -26,6 +26,7 @@ type ShapeGlyphProps = {
   outlineColor: string
   fillColor: string
   orientation: 'row' | 'column'
+  rotationMode: string
 }
 
 function readConfigId(input: unknown): string {
@@ -109,7 +110,19 @@ function cssColorToRgba(input: string): [number, number, number, number] {
   return [pixel[0], pixel[1], pixel[2], pixel[3]]
 }
 
-function ShapeGlyph({ shapeSrc, value, outlineColor, fillColor, orientation }: ShapeGlyphProps) {
+function normalizeQuarterTurns(turns: number): number {
+  const normalized = turns % 4
+  return normalized < 0 ? normalized + 4 : normalized
+}
+
+function ShapeGlyph({
+  shapeSrc,
+  value,
+  outlineColor,
+  fillColor,
+  orientation,
+  rotationMode,
+}: ShapeGlyphProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
@@ -158,26 +171,35 @@ function ShapeGlyph({ shapeSrc, value, outlineColor, fillColor, orientation }: S
       const srcW = hasVisiblePixels ? Math.max(1, maxX - minX + 1) : img.width
       const srcH = hasVisiblePixels ? Math.max(1, maxY - minY + 1) : img.height
 
-      if (orientation === 'column') {
-        // Rotate shape by 90deg in column mode.
-        const scale = Math.min(width / srcH, height / srcW)
-        const drawW = Math.max(1, Math.floor(srcH * scale))
-        const drawH = Math.max(1, Math.floor(srcW * scale))
+      const baseTurns = orientation === 'column' ? 1 : 0
+      const userTurns =
+        rotationMode === '90 clockwise' ? 1 : rotationMode === '90 counterclockwise' ? -1 : 0
+      const quarterTurns = normalizeQuarterTurns(baseTurns + userTurns)
+      const isSwapped = quarterTurns % 2 === 1
+
+      if (quarterTurns !== 0) {
+        const fitW = isSwapped ? srcH : srcW
+        const fitH = isSwapped ? srcW : srcH
+        const scale = Math.min(width / fitW, height / fitH)
+        const drawW = Math.max(1, Math.floor(fitW * scale))
+        const drawH = Math.max(1, Math.floor(fitH * scale))
         const offsetX = Math.floor((width - drawW) / 2)
         const offsetY = Math.floor((height - drawH) / 2)
         ctx.save()
         ctx.translate(offsetX + drawW / 2, offsetY + drawH / 2)
-        ctx.rotate(Math.PI / 2)
+        ctx.rotate((Math.PI / 2) * quarterTurns)
+        const destW = isSwapped ? drawH : drawW
+        const destH = isSwapped ? drawW : drawH
         ctx.drawImage(
           img,
           srcX,
           srcY,
           srcW,
           srcH,
-          -drawH / 2,
-          -drawW / 2,
-          drawH,
-          drawW,
+          -destW / 2,
+          -destH / 2,
+          destW,
+          destH,
         )
         ctx.restore()
       } else {
@@ -287,7 +309,7 @@ function ShapeGlyph({ shapeSrc, value, outlineColor, fillColor, orientation }: S
       ctx.putImageData(image, 0, 0)
     }
     img.src = shapeSrc
-  }, [fillColor, orientation, outlineColor, shapeSrc, value])
+  }, [fillColor, orientation, outlineColor, rotationMode, shapeSrc, value])
 
   return (
     <canvas
@@ -312,6 +334,12 @@ function App() {
     { name: 'shape image base64', type: 'text', multiline: true },
     { name: 'show upload controls', type: 'toggle', defaultValue: true },
     { name: 'icon scale (%)', type: 'text', defaultValue: '100', placeholder: '50-200' },
+    {
+      name: 'image rotation',
+      type: 'dropdown',
+      values: ['default', '90 clockwise', '90 counterclockwise'],
+      defaultValue: 'default',
+    },
     { name: 'interaction output label', type: 'text', defaultValue: 'Selected Dimension' },
     { name: 'target control variable', type: 'variable', allowedTypes: ['text', 'text-list'] },
     { name: 'show dimension label', type: 'toggle', defaultValue: true },
@@ -433,6 +461,7 @@ function App() {
   const showMetricLabel = Boolean(config['show metric label'] ?? true)
   const metricDisplay = String(config['metric display'] || 'percent')
   const showUploadControls = Boolean(config['show upload controls'] ?? true)
+  const rotationMode = String(config['image rotation'] || 'default')
   const iconScaleRaw = Number(config['icon scale (%)'] ?? 100)
   const iconScalePct = Number.isFinite(iconScaleRaw) ? Math.max(50, Math.min(200, iconScaleRaw)) : 100
   const iconScale = iconScalePct / 100
@@ -574,6 +603,7 @@ function App() {
                       outlineColor={shapeColor}
                       fillColor={fillColor}
                       orientation={layout}
+                      rotationMode={rotationMode}
                     />
                     <div className="shape-label-block" style={{ color: labelColor }}>
                       {showDimensionLabel && <div className="shape-label">{row.label}</div>}
