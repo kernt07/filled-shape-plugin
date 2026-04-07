@@ -17,6 +17,7 @@ type ChartRow = {
   label: string
   value: number
   rawValue: unknown
+  rawDisplay: string
 }
 
 type ShapeGlyphProps = {
@@ -61,8 +62,8 @@ function readColorConfig(input: unknown, fallback: string): string {
 function coercePercent(input: unknown): number {
   const parsed = Number(input)
   if (!Number.isFinite(parsed)) return 0
-  // Sigma measures are often ratios (0-1) for percentages; convert to 0-100.
-  const normalized = parsed >= 0 && parsed <= 1 ? parsed * 100 : parsed
+  // Sigma measures are often ratios (0-1); convert ratios to percentages.
+  const normalized = parsed * 100
   if (normalized < 0) return 0
   if (normalized > 100) return 100
   return normalized
@@ -73,6 +74,25 @@ function selectionTypeFor(value: unknown): string {
   if (typeof value === 'boolean') return 'boolean'
   if (value instanceof Date) return 'datetime'
   return 'text'
+}
+
+function formatRawValue(input: unknown): string {
+  if (input == null) return ''
+  if (typeof input === 'string') return input
+  if (typeof input === 'number') return Number.isFinite(input) ? String(input) : ''
+  if (typeof input === 'boolean') return input ? 'true' : 'false'
+  if (typeof input === 'object') {
+    const record = input as Record<string, unknown>
+    const preferred =
+      record.formattedValue ??
+      record.formatted ??
+      record.displayValue ??
+      record.label ??
+      record.text ??
+      record.value
+    if (preferred != null) return String(preferred)
+  }
+  return String(input)
 }
 
 function cssColorToRgba(input: string): [number, number, number, number] {
@@ -297,6 +317,12 @@ function App() {
     { name: 'show dimension label', type: 'toggle', defaultValue: true },
     { name: 'show metric label', type: 'toggle', defaultValue: true },
     {
+      name: 'metric display',
+      type: 'dropdown',
+      values: ['percent', 'raw', 'both'],
+      defaultValue: 'percent',
+    },
+    {
       name: 'mark order',
       type: 'dropdown',
       values: ['source order', 'label asc', 'label desc', 'value asc', 'value desc'],
@@ -345,11 +371,29 @@ function App() {
   const rowCount = Math.max(labels.length, values.length)
 
   const rows = useMemo<ChartRow[]>(() => {
+    const numericValues = values
+      .map((v) => Number(v))
+      .filter((v) => Number.isFinite(v) && v >= 0)
+    const hasAbsoluteValues = numericValues.some((v) => v > 1)
+    const maxAbsolute = hasAbsoluteValues ? Math.max(...numericValues, 1) : 1
+
     const nextRows: ChartRow[] = []
     for (let index = 0; index < rowCount; index += 1) {
       const label = labels[index] == null ? `Item ${index + 1}` : String(labels[index])
       const rawValue = values[index]
-      nextRows.push({ label, value: coercePercent(rawValue), rawValue })
+      const numeric = Number(rawValue)
+      const scaled =
+        Number.isFinite(numeric) && numeric >= 0
+          ? hasAbsoluteValues
+            ? (numeric / maxAbsolute) * 100
+            : coercePercent(numeric)
+          : 0
+      nextRows.push({
+        label,
+        value: Math.max(0, Math.min(100, scaled)),
+        rawValue,
+        rawDisplay: formatRawValue(rawValue),
+      })
     }
     return nextRows
   }, [labels, rowCount, values])
@@ -387,6 +431,7 @@ function App() {
   const labelColor = configuredLabelColor
   const showDimensionLabel = Boolean(config['show dimension label'] ?? true)
   const showMetricLabel = Boolean(config['show metric label'] ?? true)
+  const metricDisplay = String(config['metric display'] || 'percent')
   const showUploadControls = Boolean(config['show upload controls'] ?? true)
   const iconScaleRaw = Number(config['icon scale (%)'] ?? 100)
   const iconScalePct = Number.isFinite(iconScaleRaw) ? Math.max(50, Math.min(200, iconScaleRaw)) : 100
@@ -480,6 +525,12 @@ function App() {
       )}
       <section className="chart-shell">
         <div className="chart-area">
+          {selectedIdx === null && (
+            <p className="intro-text">
+              Upload or set a PNG shape, map `label column` and `value column`, then click a shape to
+              select it and trigger configured actions.
+            </p>
+          )}
           {!shapeSrc && (
             <p className="empty-state">
               Add a PNG in “shape URL” or upload one using the file picker.
@@ -526,7 +577,14 @@ function App() {
                     />
                     <div className="shape-label-block" style={{ color: labelColor }}>
                       {showDimensionLabel && <div className="shape-label">{row.label}</div>}
-                      {showMetricLabel && <div className="shape-value">{row.value.toFixed(1)}%</div>}
+                      {showMetricLabel && (
+                        <div className="shape-value">
+                          {metricDisplay === 'raw' && row.rawDisplay}
+                          {metricDisplay === 'both' &&
+                            `${row.rawDisplay}${row.rawDisplay ? ' ' : ''}(${row.value.toFixed(1)}%)`}
+                          {metricDisplay === 'percent' && `${row.value.toFixed(1)}%`}
+                        </div>
+                      )}
                     </div>
                   </button>
                 )

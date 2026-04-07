@@ -34,10 +34,12 @@ body,
 .toolbar-group label {
   font-size: 12px;
   font-weight: 600;
+  color: #000000;
 }
 
 .toolbar-group input {
   max-width: 300px;
+  color: #000000;
 }
 
 .slider-group input[type='range'] {
@@ -68,7 +70,15 @@ body,
 .empty-state {
   margin: 0 0 8px;
   font-size: 13px;
-  opacity: 0.9;
+  color: #000000;
+  opacity: 1;
+}
+
+.intro-text {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #000000;
+  font-weight: 500;
 }
 
 .shape-grid {
